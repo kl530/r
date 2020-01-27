@@ -1,0 +1,94 @@
+---
+title: "452_01"
+output: pdf_document
+---
+```{r}
+#after the ice_cream_start.R
+#Q1. explore the data and visualize.
+summary(xy)
+library(ggplot2)
+library(dplyr)
+```
+```{r}
+xy1 <- xy[, c('y', 'household_income', 'household_size', 'usecoup', 'couponper1', 'race')]
+GGally::ggpairs(xy1, aes(color = race)) + ggtitle('Explore ice cream data based on race')
+#1) comparing to other ethnic groups, asians tend to purchase smaller houses when income increases.
+#2) the higher the income, the more inclination of an Asian to use coupon.
+#3) the larger the house size, the more inclination of an Asian to use coupon.
+#4) coupons are applied solely on smaller size of ice cream.
+```
+
+```{r}
+test1 <- xy1 %>%
+  group_by(race) %>%
+  summarize(total = n(), user = sum(usecoup == TRUE), percentage = user/total)
+test1
+```
+
+
+```{r}
+#Q2. regression model in the code. and potential improvement
+fit <- glm(y~., data=xy) 
+summary(fit)
+#the full model uses all 15 predictors. 
+#the model coule be improved by variable selection methods such as backward selection, removed statistically in-significant variables based on p-values.
+#There might be intercations among predictors. Interaction plot could be applied to investigate interactions.
+pvals <- summary(fit)$coef[-1,4] 
+#after drop the intercept, almost every coefficient becomes significant. it leads to erroneous conclusion about the effect of predictors on the response
+```
+
+```{r}
+step(fit, direction = 'backward')
+#improved model:
+reduced <-glm(formula = y ~ flavor_descr + size1_descr + household_income + household_size + usecoup + couponper1 + region + married + race + microwave + sfh + internet + tvcable, data = xy)
+```
+```{r}
+summary(reduced)
+```
+
+
+```{r}
+#Q3. diff-in-diff
+#diff-in-diff can be used to estimate treatment effect comparing the before and after the treatment difference in the outcome of a treatment and a control group
+#for example, consider use of coupon as a treatment.
+#H0..
+#H1..
+xy1$treat <- ifelse(xy1$couponper1 >= 1, 1, 0)
+xy1$part <- ifelse(xy1$race == 'asian', 1, 0)
+didreg<-glm(y~treat*part, data= xy1)
+summary(didreg)
+#DID estimator is treat:part in this case. there's actually no significant effect of an interaction between race and coupon-using in purchases.
+```
+
+```{r}
+#Q4.
+#assumption that asians consumers' purchases of ice cream tend to be more stimulated by coupons, is not true according tothe DID model.
+```
+
+```{r}
+#Q5. FDR
+length(xy)
+```
+```{r}
+pvals<-summary(fit)$coefficients[,c('Pr(>|t|)')]
+fdr <- function(pvals, q, plotit=FALSE){
+  pvals <- pvals[!is.na(pvals)]
+  N <- length(pvals)
+  
+  k <- rank(pvals, ties.method="min")
+  alpha <- max(pvals[ pvals <= (q*k/N) ])
+  
+  if(plotit){
+    sig <- factor(pvals <= alpha)
+    o <- order(pvals)
+    plot(pvals[o], log="xy", col=c("grey60","red")[sig[o]], pch=20, 
+      ylab="p-values", xlab="tests ordered by p-value", main = paste('FDR =',q))
+    lines(1:N, q*(1:N) / N)
+  }
+  
+  return(alpha)
+}
+
+```
+
+
