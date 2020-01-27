@@ -1,0 +1,149 @@
+```{r}
+#install.packages('readxl')
+#library(readxl)
+#hw01<-read_excel('Preferences BAX 2020.xlsx')
+#head(hw01)
+```
+
+
+```{r}
+mydesign <- read.csv('mydesign.csv')
+head(mydesign)
+```
+```{r}
+n <- nrow(mydesign)
+```
+
+
+```{r}
+ranks <-mydesign$Preference.Ranks
+screen52<-mydesign$Screen.52.inch
+screen65<-mydesign$Screen.65.inch
+technology <- mydesign$X2D.or.3D
+brand<-mydesign$Sony...1
+price<-mydesign$Price..low...0..hi..1.
+#create design matrix
+designmatrix<-cbind(screen52,screen65,technology,brand, price)
+```
+
+```{r}
+head(designmatrix)
+#nrow(designmatrix)
+```
+
+```{r}
+#linear regression
+reg <- lm(ranks~designmatrix)
+summary(reg)
+```
+
+```{r}
+#partworths
+partworths <- as.vector(reg$coefficients)
+partworths
+```
+
+```{r}
+#partworth ranges
+coeffs <- reg$coefficients
+(sizerange<-max(coeffs[2:3],0)-min(coeffs[2:3],0))
+(techrange<-max(coeffs[4],0)-min(coeffs[4],0))
+(brandrange<-max(coeffs[5],0)-min(coeffs[5],0))
+(pricerange<-max(coeffs[6],0)-min(coeffs[6],0))
+rangesum <- sizerange+techrange+brandrange+pricerange
+```
+```{r}
+#attribute importance
+(sizeimport<-sizerange/rangesum*100)
+(techimport<-techrange/rangesum*100)
+(brandimport<-brandrange/rangesum*100)
+(priceimport<-pricerange/rangesum*100)
+```
+```{r}
+#willingness to pay
+utilityprice<-500/pricerange
+(WTP_screen52<- utilityprice*coeffs[2])
+(WTP_size65<- utilityprice*coeffs[3])
+(WTP_tech<- utilityprice*coeffs[4])
+(WTP_brand<- utilityprice*coeffs[5])
+
+```
+```{r}
+#price setting 
+myprice<-c(1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2500)
+sonyprice = 2500
+sharpprice = 2000
+#design matrix
+(sonydesign<- c(1,0,0,1,1,(sonyprice-2000)/500))
+(sharpdesign<-c(1,0,1,1,0,(sharpprice-2000)/500))
+```
+```{r}
+## Sony and Sharp Design utility
+(Sony_design_utility<-crossprod(partworths,sonydesign))
+(Sharp_design_utility<-crossprod(partworths,sharpdesign))
+```
+
+```{r}
+## Cost of each attribute
+Cost_vector<- c(1000,500,1000,250,250,0)
+```
+```{r}
+## Initializing Profit and Market Share Vectors
+My_profit = c() 
+My_market_share = c() 
+```
+
+```{r}
+## loop for different prices
+for (price in myprice) {
+  My_design<- c(1,0,0,1,1,(price-2000)/500)
+  
+  ## Design Cost
+  
+  (My_design_cost<-crossprod(My_design, Cost_vector))
+  
+  ## Utility of my design
+  
+  (My_design_utility<- crossprod(partworths,My_design))
+  
+  ## Design attractiveness
+  (My_design_attractiveness<- exp(My_design_utility))
+  
+  (Sony_design_attractiveness<- exp(Sony_design_utility))
+  
+  (Sharp_design_attractiveness<- exp(Sharp_design_utility))
+  
+  ## My design market share
+  
+  (My_design_market_share<- My_design_attractiveness*100
+    /sum(My_design_attractiveness,Sony_design_attractiveness,Sharp_design_attractiveness))
+  
+  ## My design margin and profit
+  Margin<-price-My_design_cost
+  Profit = Margin*My_design_market_share
+  
+  ## Appending to the profit and market share vectors
+
+  My_profit=c(My_profit,Profit)
+  My_market_share = c(My_market_share,My_design_market_share)
+}
+```
+
+```{r}
+## Storing price, profit and market share together
+
+(profit_market_share_matrix<- as.data.frame(cbind(myprice,My_market_share,My_profit)))
+
+```
+
+```{r}
+library(dplyr)
+## Finding max profit for my design
+(max_profit<-profit_market_share_matrix%>%select(My_profit)%>%summarise(max_profit=max(My_profit)))
+
+## finding market share and optimal price at which profit is maimized
+(market_share_and_price_at_max_profit<-profit_market_share_matrix%>%
+    filter(My_profit==max_profit$max_profit)%>%
+    select(My_market_share,myprice))
+```
+
